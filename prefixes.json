@@ -1,0 +1,16 @@
+{
+    "heat_exchanger": ["E"],
+    "heat_exchanger1": ["E"],
+    "heat_exchanger2": ["E"],
+    "heat_exchanger3": ["E"],
+    "heat_exchanger4": ["E"],
+    "heat_exchanger5": ["E"],
+    "cooler": ["E", "UE"],
+    "controller": ["PC", "HC", "FC", "TC", "PDC", "LC", "AC", "SC", "HS"],
+    "pump": ["P"],
+    "pump1": ["P"],
+    "pump2": ["P"],
+    "valve": [""],
+    "valve1": [""],
+    "valve2": [""]
+}

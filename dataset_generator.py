@@ -2,7 +2,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import random
 import math
 import time
-import io
+import io, os
+import multiprocessing as mp
 
 class DatasetGenerator:
     def __init__(self, color):
@@ -87,7 +88,7 @@ class DatasetGenerator:
 
         R = min(width, height) / 3
         stick_height = R
-        
+
         if width > height: #Horizontal
             center_x = (x0 + x1)/2
 
@@ -404,9 +405,9 @@ class DatasetGenerator:
         
         parameters = {
             'heat_exchanger': (random.uniform(0.02, 0.03), None),
-            'controller': (random.uniform(0.01, 0.02), None),
-            'valve': (random.uniform(0.01, 0.015), random.uniform(1.5, 2.0)),
-            'vessel': (random.uniform(0.06, 0.09), random.uniform(1.5, 2.5))
+            'controller': (random.uniform(0.015, 0.02), None),
+            'valve': (random.uniform(0.015, 0.02), random.uniform(1.5, 2.0)),
+            'vessel': (random.uniform(0.06, 0.09), random.uniform(1.5, 3.5))
         }
 
         size, ratio = parameters[type]
@@ -492,85 +493,80 @@ class DatasetGenerator:
                     if conn1 and conn2:
                         self.connect_points(img, draw, conn1, conn2, img_width, img_height)
 
-    def generate_diagrams(self, quantity, directory='./generated/'):
-        start = time.perf_counter()
+    def generate_diagram(self, index, directory='./generated/'):
+        line_alpha = random.randint(220, 255)
+        self.color = (0, 0, 0, line_alpha)
+        self.pipe_color = (0, 0, 0, line_alpha)
 
-        for i in range(quantity):
-            line_alpha = random.randint(220, 255)
-            self.color = (0, 0, 0, line_alpha)
-            self.pipe_color = (0, 0, 0, line_alpha)
+        W, H = 1536, 1536
+        img = Image.new('RGB', (W, H), 'white')
+        draw = ImageDraw.Draw(img)
+        file_name = f'{directory}{index}.png'
 
-            W, H = 7168, 4567
-            img = Image.new('RGB', (W, H), 'white')
-            draw = ImageDraw.Draw(img)
-            file_name = f'{directory}{i}.png'
-
-            grid_width = 9  
-            grid_height = 7 
+        grid_width = 8 
+        grid_height = 8 
             
-            symbol_grid = [[None for _ in range(grid_width)] for _ in range(grid_height)]
+        symbol_grid = [[None for _ in range(grid_width)] for _ in range(grid_height)]
             
-            grid_cells = [(x, y) for x in range(grid_width) for y in range(grid_height)]
-            random.shuffle(grid_cells)
+        grid_cells = [(x, y) for x in range(grid_width) for y in range(grid_height)]
+        random.shuffle(grid_cells)
             
-            symbols = []
-            grid_positions = []
+        symbols = []
+        grid_positions = []
             
-            symbol_counts = {
-                'heat_exchanger': random.randint(1, 2),
-                'controller': random.randint(20, 30),  
-                'valve': random.randint(10, 12),
-                'vessel': random.randint(1, 2)
-            }
+        symbol_counts = {
+            'heat_exchanger': random.randint(1, 2),
+            'controller': random.randint(20, 30),  
+            'valve': random.randint(10, 12),
+            'vessel': random.randint(1, 2)
+        }
             
-            for symbol_type, count in symbol_counts.items():
-                for _ in range(count):
-                    if grid_cells:
-                        symbols.append(symbol_type)
-                        grid_positions.append(grid_cells.pop())
-                    else:
-                        break
+        for symbol_type, count in symbol_counts.items():
+            for _ in range(count):
+                if grid_cells:
+                    symbols.append(symbol_type)
+                    grid_positions.append(grid_cells.pop())
+                else:
+                    break
 
-            bounding_boxes = []
+        bounding_boxes = []
 
-            for symbol_type, grid_pos in zip(symbols, grid_positions):
-                bbox = None
-                for _ in range(1000):  
-                    cand = self._generate_bounding_box_grid(symbol_type, W, H, grid_pos)
-                    if cand and self._valid_box(
-                        self._get_bbox_from_cand(cand, symbol_type, W, H), 
-                        bounding_boxes, padding=0.03):
-                        bbox = cand
-                        break
+        for symbol_type, grid_pos in zip(symbols, grid_positions):
+            bbox = None
+            for _ in range(1000):  
+                cand = self._generate_bounding_box_grid(symbol_type, W, H, grid_pos)
+                if cand and self._valid_box(
+                    self._get_bbox_from_cand(cand, symbol_type, W, H), 
+                    bounding_boxes, padding=0.03):
+                    bbox = cand
+                    break
 
-                if not bbox:
-                    continue
+            if not bbox:
+                continue
 
-                symbol_data = None
-                if symbol_type == 'heat_exchanger':
-                    symbol_data = self.generate_heat_exchanger(img, draw, *bbox)
-                elif symbol_type == 'controller':
-                    symbol_data = self.generate_controller(img, draw, *bbox)
-                elif symbol_type == 'valve':
-                    symbol_data = self.generate_bell_valve(img, draw, *bbox)
-                elif symbol_type == 'vessel':
-                    symbol_data = self.generate_vessel(img, draw, *bbox)
+            symbol_data = None
+            if symbol_type == 'heat_exchanger':
+                symbol_data = self.generate_heat_exchanger(img, draw, *bbox)
+            elif symbol_type == 'controller':
+                symbol_data = self.generate_controller(img, draw, *bbox)
+            elif symbol_type == 'valve':
+                symbol_data = self.generate_bell_valve(img, draw, *bbox)
+            elif symbol_type == 'vessel':
+                symbol_data = self.generate_vessel(img, draw, *bbox)
 
-                grid_x, grid_y = grid_pos
-                symbol_data['grid_position'] = (grid_x, grid_y)
+            grid_x, grid_y = grid_pos
+            symbol_data['grid_position'] = (grid_x, grid_y)
                 
-                symbol_grid[grid_y][grid_x] = symbol_data
+            symbol_grid[grid_y][grid_x] = symbol_data
 
-                bbox_coords = self._get_bbox_from_cand(bbox, symbol_type, W, H)
-                bounding_boxes.append(bbox_coords)
+            bbox_coords = self._get_bbox_from_cand(bbox, symbol_type, W, H)
+            bounding_boxes.append(bbox_coords)
 
-            self.process_connections(img, draw, symbol_grid, grid_width, grid_height, W, H)
+        self.process_connections(img, draw, symbol_grid, grid_width, grid_height, W, H)
 
-            img.save(file_name)
+        img.save(file_name)
             
-            print(f"Generated diagram {i+1}/{quantity}")
-
-        print(f"\nTotal computation time: {time.perf_counter() - start:.2f} seconds")
+        print(f"Generated diagram {index}")
 
     def _get_bbox_from_cand(self, cand, symbol_type, W, H):
         if symbol_type in ['heat_exchanger', 'controller']:
@@ -580,5 +576,32 @@ class DatasetGenerator:
             x, y, w, h = cand
             return (x * W, y * H, w * W, h * H)
 
+def tile_image(img_path, out_dir, tile_size=1024):
+    img = Image.open(img_path)
+    W, H = img.size
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    tile_id = 0
+    for y in range(0, H, tile_size):
+        for x in range(0, W, tile_size):
+            crop = img.crop((x, y, x + tile_size, y + tile_size))
+            tile_name = f"{os.path.splitext(os.path.basename(img_path))[0]}_tile_{tile_id}.png"
+            crop.save(os.path.join(out_dir, tile_name))
+            tile_id += 1
+
 gen = DatasetGenerator('black')
-gen.generate_diagrams(10)
+
+def worker(i):
+    gen.generate_diagram(i)
+
+if __name__ == '__main__':
+    N = 10
+    num_workers = max(1, mp.cpu_count() - 1)
+
+    start = time.perf_counter()
+
+    with mp.Pool(num_workers) as pool:
+        pool.map(worker, range(N))
+    
+    print(f'Computation time: {time.perf_counter() - start:.2f}s')

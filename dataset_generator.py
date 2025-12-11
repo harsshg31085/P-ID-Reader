@@ -1,7 +1,8 @@
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import random
 import math
 import time
+import io
 
 class DatasetGenerator:
     def __init__(self, color):
@@ -36,13 +37,15 @@ class DatasetGenerator:
             draw.line((x1, y1, (x0 + x1)/2, y1), fill = self.pipe_color, width = random.randint(1,3))
             draw.line(((x0 + x1)/2, y0, (x0 + x1)/2, y1), fill = self.pipe_color, width = random.randint(1,3))
 
-    def generate_valve(self, img, draw, x_norm, y_norm, w_norm, h_norm):
+    def generate_valve(self, img, draw, x_norm, y_norm, w_norm, h_norm, orientation = None):
         W, H = img.size
         x0, y0 = W * x_norm, H * y_norm
         width, height = w_norm * W, h_norm * H
         x1, y1 = x0 + width, y0 + height
 
-        if width > height:
+        draw_horizontal = width > height if orientation is None else (1 - orientation)
+    
+        if draw_horizontal:
             draw.line((x0, y0, x1, y1), fill=self.color, width = random.randint(1,3))
             draw.line((x1, y1, x1, y0), fill=self.color, width = random.randint(1,3))
             draw.line((x1, y0, x0, y1), fill=self.color, width = random.randint(1,3))
@@ -83,62 +86,74 @@ class DatasetGenerator:
         x1, y1 = x0 + width, y0 + height
 
         R = min(width, height) / 3
-        stick_height = R / 2
+        stick_height = R
+        
+        if width > height: #Horizontal
+            center_x = (x0 + x1)/2
 
-        h_orientation = random.randint(0,1)
+            if random.random() > 0.5: #Bell Up
+                center_y = y0 + R + stick_height
+                draw.line((center_x, center_y, center_x, center_y - stick_height), fill = self.color, width = random.randint(1,3))
+                draw.pieslice((center_x - R, center_y - stick_height - R, center_x + R, center_y - stick_height + R), start = 180, end = 360, outline = self.color, width = random.randint(1,3), fill = None)
+                self.generate_valve(img, draw, x_norm, (2*center_y - y1)/H, w_norm, 2*(y1 - center_y)/H, orientation = 0)
 
-        valve_height = height - (R + stick_height)
-        valve_y0 = y0 + (0 if h_orientation else R + stick_height)
+                return {
+                    'type': 'bell_valve',
+                    'orientation': 'horizontal',
+                    'bottom_connection': (center_x, center_y),
+                    'top_connection': (center_x, center_y - stick_height - R),
+                    'left_connection': (x0, center_y),
+                    'right_connection': (x1, center_y),
+                    'grid_position': None
+                }
+            
+            else: #Bell down
+                center_y = y1 - R - stick_height
+                draw.line((center_x, center_y, center_x, center_y + stick_height), fill = self.color, width = random.randint(1,3))
+                draw.pieslice((center_x - R, center_y + stick_height - R, center_x + R, center_y + stick_height + R), start = 0, end = 180, outline = self.color, fill = None, width = random.randint(1,3))
+                self.generate_valve(img, draw, x_norm, y_norm, w_norm, 2*(center_y - y0)/H, orientation = 0)
 
-        valve_data = self.generate_valve(
-            img, draw,
-            x_norm,
-            valve_y0 / H,
-            w_norm,
-            valve_height / H
-        )
-
-        xm = (x0 + x1) / 2
-        ym = valve_y0 + valve_height / 2
-
-        # Stick + bell
-        if width > height:
-            if h_orientation == 0:
-                stick_end_y = y0
-                draw.line((xm, ym, xm, stick_end_y), fill=self.color, width = random.randint(1,3))
-                draw.pieslice(
-                    (xm - R, stick_end_y - 2 * R, xm + R, stick_end_y),
-                    start=180, end=360, fill=None, outline=self.color, width = random.randint(1,3)
-                )
-            else:  # bell BELOW
-                stick_end_y = y1
-                draw.line((xm, ym, xm, stick_end_y), fill=self.color, width = random.randint(1,3))
-                draw.pieslice(
-                    (xm - R, stick_end_y, xm + R, stick_end_y + 2 * R),
-                    start=0, end=180, fill=None, outline=self.color, width = random.randint(1,3)
-                )
-
+                return {
+                    'type': 'bell_valve',
+                    'orientation': 'horizontal',
+                    'bottom_connection': (center_x, center_y + stick_height + R),
+                    'top_connection': (center_x, center_y),
+                    'right_connectoin': (x1, center_y),
+                    'left_connection': (x0, center_y),
+                    'grid_position': None
+                }
         else:
-            if h_orientation == 0:  # bell RIGHT
-                stick_end_x = x1
-                draw.line((xm, ym, stick_end_x, ym), fill=self.color, width = random.randint(1,3))
-                draw.pieslice(
-                    (stick_end_x, ym - R, stick_end_x + 2 * R, ym + R),
-                    start=270, end=90, fill=None, outline=self.color, width = random.randint(1,3)
-                )
-            else:  # bell LEFT
-                stick_end_x = x0
-                draw.line((xm, ym, stick_end_x, ym), fill=self.color, width = random.randint(1,3))
-                draw.pieslice(
-                    (stick_end_x - 2 * R, ym - R, stick_end_x, ym + R),
-                    start=90, end=270, fill=None, outline=self.color, width = random.randint(1,3)
-                )
-        
-        draw.rectangle((x0, y0, x1, y1), outline = self.color, width = random.randint(1,3), fill = None)
-        
-        valve_data['type'] = 'bell_valve'
-        valve_data['bell_orientation'] = h_orientation
-        return valve_data
+            center_y = (y0 + y1)/2
+
+            if random.random() > 0.5: #Bell Right
+                center_x = x1 - R - stick_height
+                draw.line((center_x, center_y, center_x + stick_height, center_y), fill = self.color, width = random.randint(1,3))
+                draw.pieslice((center_x + stick_height - R, center_y - R, center_x + stick_height + R, center_y + R), start = 270, end = 90, outline = self.color, fill = None, width = random.randint(1,3))
+                self.generate_valve(img, draw, x_norm, y_norm, 2*(center_x - x0)/H, h_norm, orientation = 1)
+
+                return {
+                    'type': 'bell_valve',
+                    'orientation': 'vertical',
+                    'bottom_connection': (center_x, y1),
+                    'top_connection': (center_x, y0),
+                    'right_connection': (center_x + stick_height + R, center_y),
+                    'left_connection': (center_x, center_y)
+                }
+            
+            else:
+                center_x = x0 + R + stick_height
+                draw.line((center_x, center_y, center_x - stick_height, center_y), fill = self.color, width = random.randint(1,3))
+                draw.pieslice((center_x - stick_height - R, center_y - R, center_x - stick_height + R, center_y + R), start = 90, end = 270, outline = self.color, fill = None, width = random.randint(1,3))
+                self.generate_valve(img, draw, (2*center_x - x1)/W, y_norm, 2*(x1 - center_x)/W, h_norm, orientation = 1)
+
+                return {
+                    'type': 'bell_valve',
+                    'orientation': 'vertical',
+                    'bottom_connection': (center_x, y1),
+                    'top_connection': (center_x, y0),
+                    'right_connection': (center_x, center_y),
+                    'left_connection': (center_x - R - stick_height, center_y)
+                }
 
     def generate_heat_exchanger(self, img, draw, x_norm, y_norm, r_norm):
         W, H = img.size
@@ -481,6 +496,10 @@ class DatasetGenerator:
         start = time.perf_counter()
 
         for i in range(quantity):
+            line_alpha = random.randint(220, 255)
+            self.color = (0, 0, 0, line_alpha)
+            self.pipe_color = (0, 0, 0, line_alpha)
+
             W, H = 7168, 4567
             img = Image.new('RGB', (W, H), 'white')
             draw = ImageDraw.Draw(img)
@@ -533,7 +552,7 @@ class DatasetGenerator:
                 elif symbol_type == 'controller':
                     symbol_data = self.generate_controller(img, draw, *bbox)
                 elif symbol_type == 'valve':
-                    symbol_data = self.generate_valve(img, draw, *bbox)
+                    symbol_data = self.generate_bell_valve(img, draw, *bbox)
                 elif symbol_type == 'vessel':
                     symbol_data = self.generate_vessel(img, draw, *bbox)
 

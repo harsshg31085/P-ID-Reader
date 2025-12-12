@@ -327,7 +327,7 @@ class DatasetGenerator:
         radius = r_norm * H
 
         name: str = random.choice(["PC", "HC", "FC", "TC", "PDC", "LC", "AC", "SC", "HS", "PIC", "HIC", "FIC", "TIC", "PIDC", "LIC", "AIC", "SIC", "HIS"])
-        type = 1
+        type = random.randint(0,1)
 
         if type == 0:
             draw.ellipse((x0, y0, x0 + 2*radius, y0 + 2*radius), fill = None, outline = self.color, width = random.randint(1,3))
@@ -485,7 +485,7 @@ class DatasetGenerator:
         
         parameters = {
             'heat_exchanger': (random.uniform(0.02, 0.03), None),
-            'controller': (random.uniform(0.015, 0.02), None),
+            'controller': (random.uniform(0.0075, 0.015), None),
             'valve': (random.uniform(0.015, 0.02), random.uniform(1.5, 2.0)),
             'vessel': (random.uniform(0.06, 0.09), random.uniform(1.5, 3.5)),
             'bell_valve': (random.uniform(0.015, 0.02), random.uniform(1.5, 2.0))

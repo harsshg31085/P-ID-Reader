@@ -42,20 +42,113 @@ class DatasetGenerator:
         dx = abs(x0 - x1)
         dy = abs(y0 - y1)
         
+        arrow_at_symbol1 = random.random() > 0.5
+        arrow_at_symbol2 = random.random() > 0.5
+        
+        use_dashed_line = random.random() > 0.5
+        
         if dx < dy:
             mid_y = (y0 + y1) / 2
             mid_y = max(0, min(mid_y, img_height))
             
-            draw.line((x0, y0, x0, mid_y), fill=self.pipe_color, width=random.randint(1,3))
-            draw.line((x1, y1, x1, mid_y), fill=self.pipe_color, width=random.randint(1,3))
-            draw.line((x0, mid_y, x1, mid_y), fill=self.pipe_color, width=random.randint(1,3))
+            if use_dashed_line:
+                self.draw_dashed_line(draw, (x0, y0), (x0, mid_y), width=random.randint(1,3))
+                self.draw_dashed_line(draw, (x1, y1), (x1, mid_y), width=random.randint(1,3))
+                self.draw_dashed_line(draw, (x0, mid_y), (x1, mid_y), width=random.randint(1,3))
+            else:
+                draw.line((x0, y0, x0, mid_y), fill=self.pipe_color, width=random.randint(1,3))
+                draw.line((x1, y1, x1, mid_y), fill=self.pipe_color, width=random.randint(1,3))
+                draw.line((x0, mid_y, x1, mid_y), fill=self.pipe_color, width=random.randint(1,3))
+            
+            if arrow_at_symbol1:
+                direction = -1 if y0 < mid_y else 1
+                self.draw_arrow_into_symbol(draw, x0, y0, direction, 'vertical')
+            
+            if arrow_at_symbol2:
+                direction = -1 if y1 < mid_y else 1
+                self.draw_arrow_into_symbol(draw, x1, y1, direction, 'vertical')
+                
         else:
             mid_x = (x0 + x1) / 2
             mid_x = max(0, min(mid_x, img_width))
             
-            draw.line((x0, y0, mid_x, y0), fill=self.pipe_color, width=random.randint(1,3))
-            draw.line((x1, y1, mid_x, y1), fill=self.pipe_color, width=random.randint(1,3))
-            draw.line((mid_x, y0, mid_x, y1), fill=self.pipe_color, width=random.randint(1,3))
+            if use_dashed_line:
+                self.draw_dashed_line(draw, (x0, y0), (mid_x, y0), width=random.randint(1,3))
+                self.draw_dashed_line(draw, (x1, y1), (mid_x, y1), width=random.randint(1,3))
+                self.draw_dashed_line(draw, (mid_x, y0), (mid_x, y1), width=random.randint(1,3))
+            else:
+                draw.line((x0, y0, mid_x, y0), fill=self.pipe_color, width=random.randint(1,3))
+                draw.line((x1, y1, mid_x, y1), fill=self.pipe_color, width=random.randint(1,3))
+                draw.line((mid_x, y0, mid_x, y1), fill=self.pipe_color, width=random.randint(1,3))
+            
+            if arrow_at_symbol1:
+                direction = -1 if x0 < mid_x else 1
+                self.draw_arrow_into_symbol(draw, x0, y0, direction, 'horizontal')
+            
+            if arrow_at_symbol2:
+                direction = -1 if x1 < mid_x else 1
+                self.draw_arrow_into_symbol(draw, x1, y1, direction, 'horizontal')
+
+    def draw_dashed_line(self, draw, start, end, width=3, dash_length=10):
+        x1, y1 = start
+        x2, y2 = end
+        
+        dx = x2 - x1
+        dy = y2 - y1
+        distance = (dx**2 + dy**2)**0.5
+        
+        if distance == 0:
+            return
+        
+        ux = dx / distance
+        uy = dy / distance
+        
+        total = 0
+        while total < distance:
+            seg_end = total + dash_length
+            if seg_end > distance:
+                seg_end = distance
+                
+            sx1 = x1 + ux * total
+            sy1 = y1 + uy * total
+            sx2 = x1 + ux * seg_end
+            sy2 = y1 + uy * seg_end
+            
+            draw.line([(sx1, sy1), (sx2, sy2)], fill=self.pipe_color, width=width)
+            
+            total = seg_end + dash_length
+
+    def draw_arrow_into_symbol(self, draw, x, y, direction, orientation):
+        arrow_size = random.randint(6, 12)
+        
+        if orientation == 'horizontal':
+            if direction == 1:
+                points = [
+                    (x, y),
+                    (x - arrow_size, y - arrow_size/2),
+                    (x - arrow_size, y + arrow_size/2),
+                ]
+            else:
+                points = [
+                    (x, y),
+                    (x + arrow_size, y - arrow_size/2),
+                    (x + arrow_size, y + arrow_size/2),
+                ]
+        else:
+            if direction == 1:
+                points = [
+                    (x, y),
+                    (x - arrow_size/2, y - arrow_size),
+                    (x + arrow_size/2, y - arrow_size),
+                ]
+            else:
+                points = [
+                    (x, y),
+                    (x - arrow_size/2, y + arrow_size),
+                    (x + arrow_size/2, y + arrow_size),
+                ]
+        
+        draw.polygon(points, fill=self.pipe_color, outline=self.pipe_color)
 
     def generate_valve(self, img, draw, x_norm, y_norm, w_norm, h_norm, orientation = None):
         W, H = img.size
@@ -590,7 +683,7 @@ def worker(i):
     gen.generate_diagram(i)
 
 if __name__ == '__main__':
-    N = 100
+    N = 10
     num_workers = max(1, mp.cpu_count() - 1)
 
     start = time.perf_counter()

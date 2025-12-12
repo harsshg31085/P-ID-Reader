@@ -481,8 +481,7 @@ class DatasetGenerator:
         cell_width = img_width / 8
         cell_height = img_height / 8
         
-        x1 = grid_x * cell_width + cell_width * 0.5
-        y1 = grid_y * cell_height + cell_height * 0.5
+        x1, y1 = self._randomized_grid_center(grid_x, grid_y, img_width, img_height)
         
         parameters = {
             'heat_exchanger': (random.uniform(0.02, 0.03), None),
@@ -668,6 +667,23 @@ class DatasetGenerator:
         img.save(file_name)
             
         print(f"Generated diagram {index}")
+
+    def _randomized_grid_center(self, grid_x, grid_y, img_width, img_height, max_offset=0.18):
+        cell_w = img_width / 8
+        cell_h = img_height / 8
+
+        base_x = grid_x * cell_w + cell_w * 0.5
+        base_y = grid_y * cell_h + cell_h * 0.5
+
+        ox = random.uniform(-max_offset, max_offset) * cell_w
+        oy = random.uniform(-max_offset, max_offset) * cell_h
+
+        final_x = min(max(base_x + ox, grid_x * cell_w + cell_w * 0.18),
+                    (grid_x + 1) * cell_w - cell_w * 0.18)
+        final_y = min(max(base_y + oy, grid_y * cell_h + cell_h * 0.18),
+                    (grid_y + 1) * cell_h - cell_h * 0.18)
+
+        return final_x, final_y
 
     def _get_bbox_from_cand(self, cand, symbol_type, W, H):
         if symbol_type in ['heat_exchanger', 'controller']:

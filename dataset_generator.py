@@ -10,8 +10,16 @@ class DatasetGenerator:
         self.color = color
         self.pipe_color = color
         self.font_cache = {}
+        self.class_map = {
+            'valve': 0,
+            'bell_valve': 1,
+            'controller': 2,
+            'heat_exchanger': 3,
+            'vessel': 4
+        }
 
-    def _get_font(self, size, font_path="data/arial.ttf"):
+    def _get_font(self, size):
+        font_path = random.choice(['data/arial.ttf', 'data/calibri.ttf', 'data/dejavusans.ttf'])
         key = (font_path, size)
         if key not in self.font_cache:
             self.font_cache[key] = ImageFont.truetype(font_path, size)
@@ -25,18 +33,29 @@ class DatasetGenerator:
         y0 *= img_height
         x1 *= img_width
         y1 *= img_height
-
+        
+        x0 = max(0, min(x0, img_width))
+        y0 = max(0, min(y0, img_height))
+        x1 = max(0, min(x1, img_width))
+        y1 = max(0, min(y1, img_height))
+        
         dx = abs(x0 - x1)
         dy = abs(y0 - y1)
-
+        
         if dx < dy:
-            draw.line((x0, y0, x0, (y1 + y0)/2), fill = self.pipe_color, width = random.randint(1,3))
-            draw.line((x1, y1, x1, (y1 + y0)/2), fill = self.pipe_color, width = random.randint(1,3))
-            draw.line((x0, (y1 + y0)/2, x1, (y1 + y0)/2), fill = self.pipe_color, width = random.randint(1,3))
+            mid_y = (y0 + y1) / 2
+            mid_y = max(0, min(mid_y, img_height))
+            
+            draw.line((x0, y0, x0, mid_y), fill=self.pipe_color, width=random.randint(1,3))
+            draw.line((x1, y1, x1, mid_y), fill=self.pipe_color, width=random.randint(1,3))
+            draw.line((x0, mid_y, x1, mid_y), fill=self.pipe_color, width=random.randint(1,3))
         else:
-            draw.line((x0, y0, (x0 + x1)/2, y0), fill = self.pipe_color, width = random.randint(1,3))
-            draw.line((x1, y1, (x0 + x1)/2, y1), fill = self.pipe_color, width = random.randint(1,3))
-            draw.line(((x0 + x1)/2, y0, (x0 + x1)/2, y1), fill = self.pipe_color, width = random.randint(1,3))
+            mid_x = (x0 + x1) / 2
+            mid_x = max(0, min(mid_x, img_width))
+            
+            draw.line((x0, y0, mid_x, y0), fill=self.pipe_color, width=random.randint(1,3))
+            draw.line((x1, y1, mid_x, y1), fill=self.pipe_color, width=random.randint(1,3))
+            draw.line((mid_x, y0, mid_x, y1), fill=self.pipe_color, width=random.randint(1,3))
 
     def generate_valve(self, img, draw, x_norm, y_norm, w_norm, h_norm, orientation = None):
         W, H = img.size
@@ -87,7 +106,7 @@ class DatasetGenerator:
         x1, y1 = x0 + width, y0 + height
 
         R = min(width, height) / 3
-        stick_height = R
+        stick_height = R * random.uniform(0.9, 1.2)
 
         if width > height: #Horizontal
             center_x = (x0 + x1)/2
@@ -101,10 +120,10 @@ class DatasetGenerator:
                 return {
                     'type': 'bell_valve',
                     'orientation': 'horizontal',
-                    'bottom_connection': (center_x, center_y),
-                    'top_connection': (center_x, center_y - stick_height - R),
-                    'left_connection': (x0, center_y),
-                    'right_connection': (x1, center_y),
+                    'bottom_connection': (center_x/W, center_y/H),
+                    'top_connection': (center_x/W, (center_y - stick_height - R)/H),
+                    'left_connection': (x0/W, center_y/H),
+                    'right_connection': (x1/W, center_y/H),
                     'grid_position': None
                 }
             
@@ -117,10 +136,10 @@ class DatasetGenerator:
                 return {
                     'type': 'bell_valve',
                     'orientation': 'horizontal',
-                    'bottom_connection': (center_x, center_y + stick_height + R),
-                    'top_connection': (center_x, center_y),
-                    'right_connectoin': (x1, center_y),
-                    'left_connection': (x0, center_y),
+                    'bottom_connection': (center_x/W, (center_y + stick_height + R)/H),
+                    'top_connection': (center_x/W, center_y/H),
+                    'right_connectoin': (x1/W, center_y/H),
+                    'left_connection': (x0/W, center_y/H),
                     'grid_position': None
                 }
         else:
@@ -135,10 +154,10 @@ class DatasetGenerator:
                 return {
                     'type': 'bell_valve',
                     'orientation': 'vertical',
-                    'bottom_connection': (center_x, y1),
-                    'top_connection': (center_x, y0),
-                    'right_connection': (center_x + stick_height + R, center_y),
-                    'left_connection': (center_x, center_y)
+                    'bottom_connection': (center_x/W, y1/H),
+                    'top_connection': (center_x/W, y0/H),
+                    'right_connection': ((center_x + stick_height + R)/W, center_y/H),
+                    'left_connection': (center_x/W, center_y/H)
                 }
             
             else:
@@ -150,10 +169,10 @@ class DatasetGenerator:
                 return {
                     'type': 'bell_valve',
                     'orientation': 'vertical',
-                    'bottom_connection': (center_x, y1),
-                    'top_connection': (center_x, y0),
-                    'right_connection': (center_x, center_y),
-                    'left_connection': (center_x - R - stick_height, center_y)
+                    'bottom_connection': (center_x/W, y1/H),
+                    'top_connection': (center_x/W, y0/H),
+                    'right_connection': (center_x/W, center_y/H),
+                    'left_connection': ((center_x - R - stick_height)/W, center_y/H)
                 }
 
     def generate_heat_exchanger(self, img, draw, x_norm, y_norm, r_norm):
@@ -174,70 +193,39 @@ class DatasetGenerator:
             draw.line((x0 + p1 * radius, center_y, x0 + p2 * radius, center_y - h1 * radius), fill=self.color, width = random.randint(1,3))
             draw.line((x1 - p1 * radius, center_y, x1 - p2 * radius, center_y + h1 * radius), fill=self.color, width = random.randint(1,3))
             draw.line((x0 + p2 * radius, center_y - h1 * radius, x1 - p2 * radius, center_y + h1 * radius), fill=self.color, width = random.randint(1,3))
-            data = {
-                'type': 'heat_exchanger',
-                'orientation': 'horizontal',
-                'bottom_connection': None,
-                'top_connection': None,
-                'right_connection': (x_norm + 2*r_norm, y_norm + r_norm),
-                'left_connection': (x_norm, y_norm + r_norm),
-                'position': (x_norm, y_norm),
-                'size': (2*r_norm, 2*r_norm),
-                'grid_position': None  
-            }
+
         elif orientation == 1:
             draw.line((x0, center_y, x0 + p1 * radius, center_y), fill=self.color, width = random.randint(1,3))
             draw.line((x1, center_y, x1 - p1 * radius, center_y), fill=self.color, width = random.randint(1,3))
             draw.line((x0 + p1 * radius, center_y, x0 + p2 * radius, center_y + h1 * radius), fill=self.color, width = random.randint(1,3))
             draw.line((x1 - p1 * radius, center_y, x1 - p2 * radius, center_y - h1 * radius), fill=self.color, width = random.randint(1,3))
             draw.line((x0 + p2 * radius, center_y + h1 * radius, x1 - p2 * radius, center_y - h1 * radius), fill=self.color, width = random.randint(1,3))
-            data = {
-                'type': 'heat_exchanger',
-                'orientation': 'horizontal',
-                'bottom_connection': None,
-                'top_connection': None,
-                'right_connection': (x_norm + 2*r_norm, y_norm + r_norm),
-                'left_connection': (x_norm, y_norm + r_norm),
-                'position': (x_norm, y_norm),
-                'size': (2*r_norm, 2*r_norm),
-                'grid_position': None  
-            }
+
         elif orientation == 2:
             draw.line((center_x, y0, center_x, y0 + p1*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x, y1, center_x, y1 - p1*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x, y0 + p1*radius, center_x + h1*radius, y0 + p2*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x + h1*radius, y0 + p2*radius, center_x - h1*radius, y1 - p2*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x - h1*radius, y1 - p2*radius, center_x, y1 - p1*radius), fill = self.color, width = random.randint(1,3))
-            data = {
-                'type': 'heat_exchanger',
-                'orientation': 'vertical',
-                'top_connection': (x_norm + r_norm, y_norm),
-                'bottom_connection': (x_norm + r_norm, y_norm + 2*r_norm),
-                'right_connection': None,
-                'left_connection': None,
-                'position': (x_norm, y_norm),
-                'size': (2*r_norm, 2*r_norm),
-                'grid_position': None  
-            }
+
         elif orientation == 3:
             draw.line((center_x, y0, center_x, y0 + p1*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x, y1, center_x, y1 - p1*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x, y0 + p1*radius, center_x - h1*radius, y0 + p2*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x - h1*radius, y0 + p2*radius, center_x + h1*radius, y1 - p2*radius), fill = self.color, width = random.randint(1,3))
             draw.line((center_x + h1*radius, y1 - p2*radius, center_x, y1 - p1*radius), fill = self.color, width = random.randint(1,3))
-            data = {
-                'type': 'heat_exchanger',
-                'orientation': 'vertical',
-                'top_connection': (x_norm + r_norm, y_norm),
-                'bottom_connection': (x_norm + r_norm, y_norm + 2*r_norm),
-                'right_connection': None,
-                'left_connection': None,
-                'position': (x_norm, y_norm),
-                'size': (2*r_norm, 2*r_norm),
-                'grid_position': None 
-            }
         
-        return data
+        return {
+            'type': 'heat_exchanger',
+            'orientation': 'horizontal',
+            'bottom_connection': (x_norm + r_norm, y_norm + 2*r_norm),
+            'top_connection': (x_norm + r_norm, y_norm),
+            'right_connection': (x_norm + 2*r_norm, y_norm + r_norm),
+            'left_connection': (x_norm, y_norm + r_norm),
+            'position': (x_norm, y_norm),
+            'size': (2*r_norm, 2*r_norm),
+            'grid_position': None  
+        }
 
     def generate_controller(self, img, draw, x_norm, y_norm, r_norm):
         W, H = img.size
@@ -352,13 +340,13 @@ class DatasetGenerator:
                 'grid_position': None  
             }
 
-    def _fit_text_to_box(self, draw, text, box_w, box_h, font_path="data/arial.ttf"):
+    def _fit_text_to_box(self, draw, text, box_w, box_h):
         low, high = 1, 600
         best_font = None
 
         while low <= high:
             mid = (low + high) // 2
-            font = self._get_font(mid, font_path)
+            font = self._get_font(mid)
 
             bbox = draw.textbbox((0, 0), text, font=font)
             tw = bbox[2] - bbox[0]
@@ -397,7 +385,7 @@ class DatasetGenerator:
 
     def _generate_bounding_box_grid(self, type, img_width, img_height, grid_pos):
         grid_x, grid_y = grid_pos
-        cell_width = img_width / 10
+        cell_width = img_width / 8
         cell_height = img_height / 8
         
         x1 = grid_x * cell_width + cell_width * 0.5
@@ -407,7 +395,8 @@ class DatasetGenerator:
             'heat_exchanger': (random.uniform(0.02, 0.03), None),
             'controller': (random.uniform(0.015, 0.02), None),
             'valve': (random.uniform(0.015, 0.02), random.uniform(1.5, 2.0)),
-            'vessel': (random.uniform(0.06, 0.09), random.uniform(1.5, 3.5))
+            'vessel': (random.uniform(0.06, 0.09), random.uniform(1.5, 3.5)),
+            'bell_valve': (random.uniform(0.015, 0.02), random.uniform(1.5, 2.0))
         }
 
         size, ratio = parameters[type]
@@ -439,7 +428,7 @@ class DatasetGenerator:
             return []
         
         neighbors = []
-        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]  
+        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)] 
         
         for dx, dy in directions:
             nx, ny = grid_x + dx, grid_y + dy
@@ -448,7 +437,7 @@ class DatasetGenerator:
                 neighbor = symbol_grid[ny][nx]
                 if neighbor:
                     neighbors.append((neighbor, (dx, dy)))
-                    break  
+                    break
                 nx += dx
                 ny += dy
         
@@ -466,7 +455,17 @@ class DatasetGenerator:
                 neighbors = self.find_connecting_neighbors(symbol_grid, x, y, grid_width, grid_height)
                 
                 for neighbor, (dx, dy) in neighbors:
-                    neighbor_pos = (x + dx, y + dy)  
+                    neighbor_pos = None
+                    for ny in range(grid_height):
+                        for nx in range(grid_width):
+                            if symbol_grid[ny][nx] is neighbor:
+                                neighbor_pos = (nx, ny)
+                                break
+                        if neighbor_pos:
+                            break
+                    
+                    if not neighbor_pos:
+                        continue
                     
                     pair_id = frozenset([(x, y), neighbor_pos])
                     if pair_id in processed_pairs:
@@ -477,7 +476,7 @@ class DatasetGenerator:
                     conn1 = None
                     conn2 = None
                     
-                    if dx == 1:  
+                    if dx == 1: 
                         conn1 = symbol.get('right_connection')
                         conn2 = neighbor.get('left_connection')
                     elif dx == -1:  
@@ -486,12 +485,18 @@ class DatasetGenerator:
                     elif dy == 1:  
                         conn1 = symbol.get('bottom_connection')
                         conn2 = neighbor.get('top_connection')
-                    elif dy == -1: 
+                    elif dy == -1:  
                         conn1 = symbol.get('top_connection')
                         conn2 = neighbor.get('bottom_connection')
                     
-                    if conn1 and conn2:
-                        self.connect_points(img, draw, conn1, conn2, img_width, img_height)
+                    if not conn1 or not conn2:
+                        continue
+                    
+                    if (conn1[0] < 0 or conn1[0] > 1 or conn1[1] < 0 or conn1[1] > 1 or
+                        conn2[0] < 0 or conn2[0] > 1 or conn2[1] < 0 or conn2[1] > 1):
+                        continue
+                    
+                    self.connect_points(img, draw, conn1, conn2, img_width, img_height)
 
     def generate_diagram(self, index, directory='./generated/'):
         line_alpha = random.randint(220, 255)
@@ -515,10 +520,11 @@ class DatasetGenerator:
         grid_positions = []
             
         symbol_counts = {
-            'heat_exchanger': random.randint(1, 2),
+            'heat_exchanger': random.randint(2, 3),
             'controller': random.randint(20, 30),  
-            'valve': random.randint(10, 12),
-            'vessel': random.randint(1, 2)
+            'valve': random.randint(5, 6),
+            'vessel': random.randint(1, 2),
+            'bell_valve': random.randint(5, 6)
         }
             
         for symbol_type, count in symbol_counts.items():
@@ -550,6 +556,8 @@ class DatasetGenerator:
             elif symbol_type == 'controller':
                 symbol_data = self.generate_controller(img, draw, *bbox)
             elif symbol_type == 'valve':
+                symbol_data = self.generate_valve(img, draw, *bbox)
+            elif symbol_type == 'bell_valve':
                 symbol_data = self.generate_bell_valve(img, draw, *bbox)
             elif symbol_type == 'vessel':
                 symbol_data = self.generate_vessel(img, draw, *bbox)
@@ -576,27 +584,13 @@ class DatasetGenerator:
             x, y, w, h = cand
             return (x * W, y * H, w * W, h * H)
 
-def tile_image(img_path, out_dir, tile_size=1024):
-    img = Image.open(img_path)
-    W, H = img.size
-
-    os.makedirs(out_dir, exist_ok=True)
-
-    tile_id = 0
-    for y in range(0, H, tile_size):
-        for x in range(0, W, tile_size):
-            crop = img.crop((x, y, x + tile_size, y + tile_size))
-            tile_name = f"{os.path.splitext(os.path.basename(img_path))[0]}_tile_{tile_id}.png"
-            crop.save(os.path.join(out_dir, tile_name))
-            tile_id += 1
-
 gen = DatasetGenerator('black')
 
 def worker(i):
     gen.generate_diagram(i)
 
 if __name__ == '__main__':
-    N = 10
+    N = 100
     num_workers = max(1, mp.cpu_count() - 1)
 
     start = time.perf_counter()
@@ -604,4 +598,4 @@ if __name__ == '__main__':
     with mp.Pool(num_workers) as pool:
         pool.map(worker, range(N))
     
-    print(f'Computation time: {time.perf_counter() - start:.2f}s')
+    print(f'Computation time: {time.perf_counter() - start:.2f} seconds')

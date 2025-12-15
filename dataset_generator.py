@@ -2,7 +2,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import random
 import math
 import time
-import json
 import os
 import multiprocessing as mp
 
@@ -12,11 +11,11 @@ class DatasetGenerator:
         self.pipe_color = color
         self.font_cache = {}
         self.class_map = {
-            'valve': 1,
-            'bell_valve': 2,
-            'controller': 3,
-            'heat_exchanger': 4,
-            'vessel': 5
+            'valve': 0,
+            'bell_valve': 1,
+            'controller': 2,
+            'heat_exchanger': 3,
+            'vessel': 4
         }
 
     def _get_font(self, size):
@@ -43,8 +42,8 @@ class DatasetGenerator:
         dx = abs(x0 - x1)
         dy = abs(y0 - y1)
         
-        arrow_at_symbol1 = random.random() > 0.7
-        arrow_at_symbol2 = random.random() > 0.7
+        arrow_at_symbol1 = random.random() > 0.5
+        arrow_at_symbol2 = random.random() > 0.5
         
         use_dashed_line = random.random() > 0.8
         
@@ -194,13 +193,14 @@ class DatasetGenerator:
                 'is_horizontal': False
             }
         
-        annotation = {
-            'bbox': [round(float(x0), 2), round(float(y0), 2), round(float(width), 2), round(float(height), 2)],
-            'category_id': self.class_map['valve'],
-            'category_name': 'valve'
-        }
+        center_x = (x_norm + w_norm/2)
+        center_y = (y_norm + h_norm/2)
+        width_norm = w_norm
+        height_norm = h_norm
         
-        return visual_data, annotation
+        yolo_annotation = f"{self.class_map['valve']} {center_x:.6f} {center_y:.6f} {width_norm:.6f} {height_norm:.6f}"
+        
+        return visual_data, yolo_annotation
 
     def generate_bell_valve(self, img, draw, x_norm, y_norm, w_norm, h_norm):
         W, H = img.size
@@ -276,13 +276,12 @@ class DatasetGenerator:
                     'left_connection': ((center_x - R - stick_height)/W, center_y/H)
                 }
         
-        annotation = {
-            'bbox': [round(float(x0), 2), round(float(y0), 2), round(float(width), 2), round(float(height), 2)],
-            'category_id': self.class_map['bell_valve'],
-            'category_name': 'bell_valve'
-        }
+        center_x_norm = x_norm + w_norm/2
+        center_y_norm = y_norm + h_norm/2
         
-        return visual_data, annotation
+        yolo_annotation = f"{self.class_map['bell_valve']} {center_x_norm:.6f} {center_y_norm:.6f} {w_norm:.6f} {h_norm:.6f}"
+        
+        return visual_data, yolo_annotation
 
     def generate_heat_exchanger(self, img, draw, x_norm, y_norm, r_norm):
         W, H = img.size
@@ -333,13 +332,14 @@ class DatasetGenerator:
             'grid_position': None  
         }
         
-        annotation = {
-            'bbox': [round(float(x0), 2), round(float(y0), 2), round(float(2*radius), 2), round(float(2*radius), 2)],
-            'category_id': self.class_map['heat_exchanger'],
-            'category_name': 'heat_exchanger'
-        }
+        center_x_norm = x_norm + r_norm
+        center_y_norm = y_norm + r_norm
+        width_norm = 2 * r_norm
+        height_norm = 2 * r_norm
         
-        return visual_data, annotation
+        yolo_annotation = f"{self.class_map['heat_exchanger']} {center_x_norm:.6f} {center_y_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
+        
+        return visual_data, yolo_annotation
 
     def generate_controller(self, img, draw, x_norm, y_norm, r_norm):
         W, H = img.size
@@ -375,14 +375,14 @@ class DatasetGenerator:
             'grid_position': None  
         }
         
-        annotation = {
-            'bbox': [round(float(x0), 2), round(float(y0), 2), round(float(2*radius), 2), round(float(2*radius), 2)],
-            'category_id': self.class_map['controller'],
-            'category_name': 'controller',
-            'label': name
-        }
+        center_x_norm = x_norm + r_norm
+        center_y_norm = y_norm + r_norm
+        width_norm = 2 * r_norm
+        height_norm = 2 * r_norm
         
-        return visual_data, annotation
+        yolo_annotation = f"{self.class_map['controller']} {center_x_norm:.6f} {center_y_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
+        
+        return visual_data, yolo_annotation
 
     def generate_vessel(self, img, draw, x_norm, y_norm, w_norm, h_norm):
         W, H = img.size
@@ -466,13 +466,12 @@ class DatasetGenerator:
                 'grid_position': None  
             }
         
-        annotation = {
-            'bbox': [round(float(x0), 2), round(float(y0), 2), round(float(width), 2), round(float(height), 2)],
-            'category_id': self.class_map['vessel'],
-            'category_name': 'vessel'
-        }
+        center_x_norm = x_norm + w_norm/2
+        center_y_norm = y_norm + h_norm/2
         
-        return visual_data, annotation
+        yolo_annotation = f"{self.class_map['vessel']} {center_x_norm:.6f} {center_y_norm:.6f} {w_norm:.6f} {h_norm:.6f}"
+        
+        return visual_data, yolo_annotation
 
     def _fit_text_to_box(self, draw, text, box_w, box_h):
         low, high = 1, 600
@@ -644,8 +643,8 @@ class DatasetGenerator:
         img = Image.new('RGB', (W, H), 'white')
         draw = ImageDraw.Draw(img)
         
-        image_filename = f'./data/{dataset_type}/images/{index}.png'
-        json_filename = f'./data/{dataset_type}/labels/{index}.json'
+        image_filename = f'./data/{dataset_type}/images/{index:05d}.png'
+        label_filename = f'./data/{dataset_type}/labels/{index:05d}.txt'
 
         grid_width = 8 
         grid_height = 8 
@@ -675,8 +674,7 @@ class DatasetGenerator:
                     break
 
         bounding_boxes = []
-        annotations = []
-        annotation_id_counter = 0
+        yolo_annotations = []
         
         for symbol_type, grid_pos in zip(symbols, grid_positions):
             bbox = None
@@ -692,36 +690,25 @@ class DatasetGenerator:
                 continue
 
             symbol_visual = None
-            symbol_annotation = None
+            yolo_annotation = None
             
             if symbol_type == 'heat_exchanger':
-                symbol_visual, symbol_annotation = self.generate_heat_exchanger(img, draw, *bbox)
+                symbol_visual, yolo_annotation = self.generate_heat_exchanger(img, draw, *bbox)
             elif symbol_type == 'controller':
-                symbol_visual, symbol_annotation = self.generate_controller(img, draw, *bbox)
+                symbol_visual, yolo_annotation = self.generate_controller(img, draw, *bbox)
             elif symbol_type == 'valve':
-                symbol_visual, symbol_annotation = self.generate_valve(img, draw, *bbox)
+                symbol_visual, yolo_annotation = self.generate_valve(img, draw, *bbox)
             elif symbol_type == 'bell_valve':
-                symbol_visual, symbol_annotation = self.generate_bell_valve(img, draw, *bbox)
+                symbol_visual, yolo_annotation = self.generate_bell_valve(img, draw, *bbox)
             elif symbol_type == 'vessel':
-                symbol_visual, symbol_annotation = self.generate_vessel(img, draw, *bbox)
+                symbol_visual, yolo_annotation = self.generate_vessel(img, draw, *bbox)
 
             if symbol_visual:
                 grid_x, grid_y = grid_pos
                 symbol_visual['grid_position'] = (grid_x, grid_y)
                 symbol_grid[grid_y][grid_x] = symbol_visual
                 
-                bbox_pixel = symbol_annotation['bbox']
-                annotation = {
-                    'id': annotation_id_counter,
-                    'image_id': index,
-                    'category_id': symbol_annotation['category_id'],
-                    'bbox': bbox_pixel,
-                    'area': round(bbox_pixel[2] * bbox_pixel[3], 2),
-                    'iscrowd': 0,
-                    'segmentation': []
-                }
-                annotations.append(annotation)
-                annotation_id_counter += 1
+                yolo_annotations.append(yolo_annotation)
 
                 bbox_coords = self._get_bbox_from_cand(bbox, symbol_type, W, H)
                 bounding_boxes.append(bbox_coords)
@@ -730,34 +717,13 @@ class DatasetGenerator:
 
         img.save(image_filename)
         
-        coco_json = {
-            'info': {
-                'description': 'P&ID Diagram Dataset',
-                'version': '1.0'
-            },
-            'licenses': [],
-            'categories': [
-                {'id': 1, 'name': 'valve', 'supercategory': 'symbol'},
-                {'id': 2, 'name': 'bell_valve', 'supercategory': 'symbol'},
-                {'id': 3, 'name': 'controller', 'supercategory': 'symbol'},
-                {'id': 4, 'name': 'heat_exchanger', 'supercategory': 'symbol'},
-                {'id': 5, 'name': 'vessel', 'supercategory': 'symbol'}
-            ],
-            'images': [{
-                'id': index,
-                'file_name': f'{index}.png',
-                'width': W,
-                'height': H
-            }],
-            'annotations': annotations
-        }
+        with open(label_filename, 'w') as f:
+            for annotation in yolo_annotations:
+                f.write(annotation + '\n')
         
-        with open(json_filename, 'w') as f:
-            json.dump(coco_json, f, indent=2)
+        print(f"Generated diagram {index:05d} for {dataset_type} with {len(yolo_annotations)} symbols")
         
-        print(f"Generated diagram {index} for {dataset_type}")
-        
-        return coco_json
+        return len(yolo_annotations)
 
     def _randomized_grid_center(self, grid_x, grid_y, img_width, img_height, max_offset=0.18):
         cell_w = img_width / 8
@@ -788,9 +754,9 @@ def worker(args):
     i, dataset_type = args
     gen = DatasetGenerator('black')
     
-    annotation = gen.generate_diagram(i, dataset_type)
+    num_symbols = gen.generate_diagram(i, dataset_type)
     
-    return annotation
+    return num_symbols
 
 def generate_dataset(total_images=10000):    
     base_dir = './data/'
@@ -820,15 +786,43 @@ def generate_dataset(total_images=10000):
     
     num_workers = max(1, mp.cpu_count() - 1)
     
+    total_symbols = 0
     with mp.Pool(num_workers) as pool:
         results = []
-        for i, result in enumerate(pool.imap_unordered(worker, args_list)):
-            results.append(result)
+        for i, num_symbols in enumerate(pool.imap_unordered(worker, args_list)):
+            results.append(num_symbols)
+            total_symbols += num_symbols
             
             if (i + 1) % 100 == 0:
-                print(f"Generated {i + 1}/{total_images} images")
+                print(f"Generated {i + 1}/{total_images} images ({total_symbols} total symbols)")
     
-    print(f'Computation time: {time.perf_counter() - start} seconds')
+    elapsed = time.perf_counter() - start
+    
+    print(f'\nDataset generation completed!')
+    print(f'Total images: {total_images}')
+    print(f'Total symbols: {total_symbols}')
+    print(f'Average symbols per image: {total_symbols/total_images:.2f}')
+    print(f'Total computation time: {elapsed:.2f} seconds')
+    print(f'Average time per image: {elapsed/total_images:.3f} seconds')
+    
+    yaml_content = f"""# P&ID Dataset YAML configuration
+        path: data
+        train: train/images
+        val: val/images
+
+        # Classes
+        names:
+            0: valve
+            1: bell_valve
+            2: controller
+            3: heat_exchanger
+            4: vessel
+        """
+    
+    with open('./data/data.yaml', 'w') as f:
+        f.write(yaml_content)
+    
+    print(f'\nCreated data.yaml configuration file for YOLO training')
 
 if __name__ == '__main__':
-    generate_dataset(total_images=10)
+    generate_dataset(total_images=5000)
